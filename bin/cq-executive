@@ -1,0 +1,78 @@
+#!/bin/bash
+# cq-executive - Executive-optimized Claude Query with smart defaults
+# Pre-loaded with business context and common executive queries
+
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
+NC='\033[0m'
+
+# Show executive dashboard if no args
+if [ $# -eq 0 ]; then
+    echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${PURPLE}     Executive Dashboard - Claude Usage Analytics      ${NC}"
+    echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # Show quick stats
+    echo -e "${BLUE}📊 Quick Stats:${NC}"
+    /Library/Frameworks/Python.framework/Versions/3.12/bin/snow sql -c poc -q "
+    SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_EXECUTIVE_SUMMARY;" --format table 2>/dev/null | head -15
+    
+    echo ""
+    echo -e "${GREEN}Common Executive Queries:${NC}"
+    echo "  cq-executive metrics        → Key performance indicators"
+    echo "  cq-executive costs          → Usage costs breakdown"
+    echo "  cq-executive adoption       → User adoption metrics"
+    echo "  cq-executive orphans        → Session completion rates"
+    echo "  cq-executive trends         → Usage trends over time"
+    echo "  cq-executive users          → Most active users"
+    echo "  cq-executive efficiency     → Tool usage efficiency"
+    echo ""
+    echo -e "${YELLOW}Or ask any question:${NC}"
+    echo "  cq-executive \"What's our Claude usage this week?\""
+    echo "  cq-executive \"Show cost breakdown by department\""
+    echo "  cq-executive \"Which teams are adopting Claude fastest?\""
+    exit 0
+fi
+
+# Handle shortcuts
+case "$1" in
+    metrics|kpi|dashboard)
+        QUERY="Show comprehensive executive metrics from V_EXECUTIVE_SUMMARY with totals, averages, and trends"
+        ;;
+    costs|cost|spending)
+        QUERY="Calculate estimated Claude usage costs broken down by day and user from V_COST_FANTASY"
+        ;;
+    adoption|users|growth)
+        QUERY="Show user adoption metrics including new users, active users, and usage growth trends"
+        ;;
+    orphans|incomplete|completion)
+        QUERY="Analyze session completion rates from V_LEARNING_ORPHANED_SESSIONS with reasons for incompletion"
+        ;;
+    trends|trend|patterns)
+        QUERY="Show Claude usage trends over the last 30 days with daily and weekly patterns"
+        ;;
+    efficiency|performance|productivity)
+        QUERY="Calculate efficiency metrics like average session duration, tools per session, and success rates"
+        ;;
+    *)
+        QUERY="$*"
+        ;;
+esac
+
+# Call cq with enhanced executive context
+EXEC_CONTEXT="
+IMPORTANT: This is for an executive dashboard. Prioritize:
+1. Use V_EXECUTIVE_SUMMARY for high-level metrics
+2. Include totals, averages, and percentages
+3. Format numbers nicely (K for thousands, M for millions)
+4. Sort by importance/recency
+5. Limit results to meaningful insights (usually top 10-20)
+
+Executive is asking: $QUERY"
+
+echo -e "${BLUE}🎯 Generating Executive Query...${NC}"
+$(dirname $0)/cq "$EXEC_CONTEXT"

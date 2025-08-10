@@ -1,0 +1,31 @@
+{
+  "name": "snowflake-activity-schema",
+  "version": "2.0.0",
+  "description": "Production-ready ActivitySchema v2.0 for Claude Code with Snowflake integration",
+  "main": "activity_schema/ndjson_queue.js",
+  "scripts": {
+    "start": "node activity_schema/ndjson_queue.js",
+    "uploader": "node activity_schema/snowpipe_uploader.js",
+    "test": "jest",
+    "migrate": "snow sql -c poc -f sql/01_migration_setup.sql",
+    "deploy": "bash deploy/production.sh"
+  },
+  "keywords": [
+    "snowflake",
+    "activity-schema",
+    "claude",
+    "analytics",
+    "event-tracking"
+  ],
+  "author": "Chandler Klose",
+  "license": "MIT",
+  "dependencies": {
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

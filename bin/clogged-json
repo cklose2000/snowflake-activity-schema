@@ -1,0 +1,71 @@
+#!/bin/bash
+# clogged-json - Claude wrapper that logs activities to Snowflake
+# This wrapper intercepts Claude execution and logs session activities
+
+set -e
+
+# Setup session
+SESSION_ID="claude-$(date +%s)-$$"
+export CLAUDE_SESSION_ID=$SESSION_ID
+
+# Find the logging script (handle both direct execution and symlinks)
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
+    # If this is a symlink, resolve it
+    REAL_SCRIPT="$(readlink "${BASH_SOURCE[0]}")"
+    SCRIPT_DIR="$(dirname "$REAL_SCRIPT")"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+LOGGER_SCRIPT="$SCRIPT_DIR/../activity_schema/log_claude_activity.sh"
+
+# Ensure logger script exists
+if [[ ! -f "$LOGGER_SCRIPT" ]]; then
+    echo "Error: Logger script not found at $LOGGER_SCRIPT" >&2
+    exit 1
+fi
+
+echo "🔍 Starting logged Claude session: $SESSION_ID" >&2
+
+# Log session start
+"$LOGGER_SCRIPT" session_start "$(pwd)" >/dev/null 2>&1 || echo "Warning: Failed to log session start" >&2
+
+# Track metrics
+START_TIME=$(date +%s)
+ACTIVITY_COUNT=0
+
+# Create temp file for capturing output
+TEMP_OUTPUT="/tmp/claude-output-$$"
+trap "rm -f $TEMP_OUTPUT" EXIT
+
+# Run Claude and capture output (use 'command' to bypass alias)
+echo "🚀 Running Claude..." >&2
+command claude "$@" 2>&1 | tee "$TEMP_OUTPUT" | while IFS= read -r line; do
+    # Pass through to user immediately
+    echo "$line"
+    
+    # Try to detect and log tool usage patterns
+    # Claude often outputs patterns like "Running [tool]" or "Executing command"
+    if [[ "$line" =~ Running\ tool:\ ([A-Za-z]+) ]]; then
+        TOOL_NAME="${BASH_REMATCH[1]}"
+        ((ACTIVITY_COUNT++))
+        "$LOGGER_SCRIPT" tool_call "$TOOL_NAME" '{"source":"output_parse"}' "success" 100 50 >/dev/null 2>&1
+        echo "  📝 Logged tool usage: $TOOL_NAME" >&2
+    elif [[ "$line" =~ Executing|Running|Creating|Writing|Reading ]]; then
+        # Generic activity detection
+        ((ACTIVITY_COUNT++))
+    fi
+done
+
+# Calculate session duration
+END_TIME=$(date +%s)
+DURATION_MS=$(( (END_TIME - START_TIME) * 1000 ))
+
+# Estimate tokens from output size (rough approximation)
+OUTPUT_SIZE=$(wc -c < "$TEMP_OUTPUT" 2>/dev/null || echo "1000")
+ESTIMATED_TOKENS=$(( OUTPUT_SIZE / 4 ))  # Rough: 4 chars per token
+
+# Log session end
+"$LOGGER_SCRIPT" session_end "$ACTIVITY_COUNT" "$ESTIMATED_TOKENS" "$DURATION_MS" >/dev/null 2>&1 || echo "Warning: Failed to log session end" >&2
+
+echo "✅ Session logged: $ACTIVITY_COUNT activities, ~$ESTIMATED_TOKENS tokens, ${DURATION_MS}ms" >&2
+echo "📊 View in Snowflake: SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_RECENT_ACTIVITIES;" >&2

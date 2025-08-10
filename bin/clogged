@@ -1,0 +1,47 @@
+#!/bin/bash
+# clogged - Simple Claude wrapper that logs session start/end to Snowflake
+
+set -e
+
+# Setup session
+SESSION_ID="claude-$(date +%s)-$$"
+export CLAUDE_SESSION_ID=$SESSION_ID
+
+# Find the logging script (handle both direct execution and symlinks)
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
+    # If this is a symlink, resolve it
+    REAL_SCRIPT="$(readlink "${BASH_SOURCE[0]}")"
+    SCRIPT_DIR="$(dirname "$REAL_SCRIPT")"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+LOGGER_SCRIPT="$SCRIPT_DIR/../activity_schema/log_claude_activity.sh"
+
+# Ensure logger script exists
+if [[ ! -f "$LOGGER_SCRIPT" ]]; then
+    echo "Error: Logger script not found at $LOGGER_SCRIPT" >&2
+    exit 1
+fi
+
+echo "📝 Starting logged Claude session (simple mode): $SESSION_ID" >&2
+
+# Log session start
+"$LOGGER_SCRIPT" session_start "$(pwd)" >/dev/null 2>&1
+
+# Track timing
+START_TIME=$(date +%s)
+
+# Run Claude (pass through everything)
+claude "$@"
+CLAUDE_EXIT_CODE=$?
+
+# Calculate duration
+END_TIME=$(date +%s)
+DURATION_MS=$(( (END_TIME - START_TIME) * 1000 ))
+
+# Log session end (minimal metrics for simple mode)
+"$LOGGER_SCRIPT" session_end 1 100 "$DURATION_MS" >/dev/null 2>&1
+
+echo "✅ Session logged (simple mode)" >&2
+
+exit $CLAUDE_EXIT_CODE

@@ -1,0 +1,160 @@
+#!/bin/bash
+# teach-me-activityschema - Interactive learning path for ActivitySchema
+
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+clear
+
+cat << "EOF"
+    _         _   _       _ _        ____       _                          
+   / \   ____| |_(_)_   _(_) |_ _   |  _ \ ___| |_ ___ _ __ _ __  ___ 
+  / _ \ / ___|  _| \ \ / / | __| | | | |_) / _ \ __/ _ \ '__| '_ \/ __|
+ / ___ \ (__| |_| |\ V /| | |_| |_| |  __/  __/ ||  __/ |  | | | \__ \
+/_/   \_\___|\__|_| \_/ |_|\__|\__, |_|   \___|\__\___|_|  |_| |_|___/
+                                |___/  Learning System v1.0
+EOF
+
+echo ""
+echo -e "${PURPLE}═══════════════════════════════════════════════════════${NC}"
+echo -e "${PURPLE}     Welcome to Interactive ActivitySchema Learning!     ${NC}"
+echo -e "${PURPLE}═══════════════════════════════════════════════════════${NC}"
+echo ""
+
+# Function to run a query and wait for user
+run_query() {
+    local query="$1"
+    local explanation="$2"
+    
+    echo -e "${YELLOW}$explanation${NC}"
+    echo -e "${BLUE}Query to run:${NC}"
+    echo "$query"
+    echo ""
+    read -p "Press Enter to run this query..." 
+    
+    if command -v snow &> /dev/null; then
+        SNOW_CMD="snow"
+    elif [ -x "/Library/Frameworks/Python.framework/Versions/3.12/bin/snow" ]; then
+        SNOW_CMD="/Library/Frameworks/Python.framework/Versions/3.12/bin/snow"
+    else
+        echo "❌ Snow CLI not found"
+        return 1
+    fi
+    
+    $SNOW_CMD sql -c poc -q "$query" 2>/dev/null
+    echo ""
+    read -p "Press Enter to continue to next lesson..."
+    clear
+}
+
+# Lesson 1: Understanding the Basics
+echo -e "${GREEN}📚 Lesson 1: Understanding the Basics${NC}"
+echo -e "${GREEN}════════════════════════════════════${NC}"
+echo ""
+echo "ActivitySchema is a pattern for logging events in a structured way."
+echo "Let's see what activities we're tracking for Claude Code:"
+echo ""
+
+run_query "SELECT DISTINCT activity FROM CLAUDE_LOGS.ACTIVITIES.ACTIVITY_STREAM WHERE activity LIKE 'claude_%' LIMIT 10;" \
+    "First, let's see what types of activities we're logging:"
+
+# Lesson 2: The Orphan Problem
+echo -e "${GREEN}📚 Lesson 2: Discovering the Orphan Problem${NC}"
+echo -e "${GREEN}══════════════════════════════════════════${NC}"
+echo ""
+echo "Most real-world sessions don't end cleanly. Users hit Ctrl+C, "
+echo "connections drop, or processes crash. This creates 'orphaned' sessions."
+echo ""
+
+run_query "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_LEARNING_ORPHANED_SESSIONS;" \
+    "Let's check how many sessions are orphaned:"
+
+echo -e "${YELLOW}💡 Learning Point:${NC}"
+echo "If the orphan rate is high (>50%), it means we need better"
+echo "session tracking. Options include:"
+echo "  - Heartbeat events"
+echo "  - Timeout detection"
+echo "  - Graceful shutdown handlers"
+echo ""
+read -p "Press Enter to continue..."
+clear
+
+# Lesson 3: Meta-Learning
+echo -e "${GREEN}📚 Lesson 3: Meta-Learning (Learning About Learning)${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
+echo ""
+echo "The beautiful part: We can use Claude to analyze Claude usage!"
+echo "This creates a recursive learning loop."
+echo ""
+
+run_query "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_META_LEARNING LIMIT 10;" \
+    "See which sessions are studying the system itself:"
+
+# Lesson 4: System Evolution
+echo -e "${GREEN}📚 Lesson 4: Watching the System Evolve${NC}"
+echo -e "${GREEN}═══════════════════════════════════════${NC}"
+echo ""
+echo "As we add more logging, the system becomes more sophisticated."
+echo "This view shows our progress:"
+echo ""
+
+run_query "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_SYSTEM_EVOLUTION;" \
+    "Track how our logging capabilities grow over time:"
+
+# Lesson 5: Pattern Discovery
+echo -e "${GREEN}📚 Lesson 5: Discovering Usage Patterns${NC}"
+echo -e "${GREEN}═══════════════════════════════════════${NC}"
+echo ""
+echo "When do people use Claude most? What patterns emerge?"
+echo ""
+
+run_query "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_PATTERN_DISCOVERY LIMIT 10;" \
+    "Analyze when Claude is used most:"
+
+# Interactive Challenge
+clear
+echo -e "${PURPLE}═══════════════════════════════════════════════════════${NC}"
+echo -e "${PURPLE}              🏆 Your Turn: Challenges 🏆               ${NC}"
+echo -e "${PURPLE}═══════════════════════════════════════════════════════${NC}"
+echo ""
+
+echo -e "${YELLOW}Challenge 1: Find Your Longest Session${NC}"
+echo "Write a query to find your longest Claude session."
+echo "Hint: Use DATEDIFF and filter by your hostname"
+echo ""
+echo "Example structure:"
+echo -e "${BLUE}SELECT customer, DATEDIFF('minute', MIN(ts), MAX(ts)) as duration"
+echo "FROM ACTIVITY_STREAM"
+echo "WHERE anonymous_customer_id = '$(hostname)'"
+echo -e "GROUP BY customer ORDER BY duration DESC LIMIT 1;${NC}"
+echo ""
+
+echo -e "${YELLOW}Challenge 2: Calculate Real Costs${NC}"
+echo "The current cost estimates are rough. Can you improve them?"
+echo "Research Claude's actual pricing and update the calculations."
+echo ""
+
+echo -e "${YELLOW}Challenge 3: Add New Tracking${NC}"
+echo "What else should we track? Error rates? File types edited?"
+echo "Design a new view that would be useful!"
+echo ""
+
+echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}                  🎓 Congratulations! 🎓                ${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
+echo ""
+echo "You've completed the basic ActivitySchema course!"
+echo ""
+echo -e "${BLUE}Next steps:${NC}"
+echo "1. Run: ./bin/my-claude-journey      (see your personal stats)"
+echo "2. Use Claude to improve these views"
+echo "3. Add your own tracking features"
+echo "4. Teach others what you've learned!"
+echo ""
+echo -e "${PURPLE}Remember: The bugs are features - they're learning opportunities!${NC}"
+echo ""

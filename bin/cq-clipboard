@@ -1,0 +1,61 @@
+#!/bin/bash
+# cq-clipboard - Copies the SQL query to clipboard for easy paste in Snowflake
+
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+PURPLE='\033[0;35m'
+NC='\033[0m'
+
+# Get the query from command line
+PROMPT="$*"
+
+if [ -z "$PROMPT" ]; then
+    echo "Usage: cq-clipboard <question about your data>"
+    echo "Example: cq-clipboard 'show me today's activities'"
+    exit 1
+fi
+
+echo -e "${BLUE}🤖 Asking Claude to write SQL...${NC}"
+
+# Ask Claude to generate SQL
+OUTPUT=$(claude -p "Write a Snowflake SQL query for: $PROMPT
+
+Context: Database CLAUDE_LOGS, Schema ACTIVITIES
+Main table: ACTIVITY_STREAM (columns: activity_id, ts, activity, customer, feature_json)
+Views: V_EXECUTIVE_SUMMARY, V_LEARNING_ORPHANED_SESSIONS, V_META_LEARNING
+
+Return ONLY the SQL query." 2>&1)
+
+# Extract SQL
+QUERY=$(echo "$OUTPUT" | sed -n '/SELECT/,/;/p' | head -20)
+
+if [ -n "$QUERY" ]; then
+    echo -e "${GREEN}Generated SQL:${NC}"
+    echo "$QUERY"
+    echo ""
+    
+    # Copy to clipboard (macOS)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "$QUERY" | pbcopy
+        echo -e "${GREEN}✅ SQL copied to clipboard!${NC}"
+        echo ""
+        echo -e "${BLUE}Next steps:${NC}"
+        echo "1. Go to: https://yshmxno-fbc56289.snowflakecomputing.com/console"
+        echo "2. Log in with your credentials"
+        echo "3. Click 'Worksheets' in the top menu"
+        echo "4. Paste (Cmd+V) the query"
+        echo "5. Click 'Run' or press Cmd+Enter"
+    else
+        echo -e "${YELLOW}Copy this SQL manually:${NC}"
+        echo "$QUERY"
+    fi
+    
+    # Also run locally for preview
+    echo ""
+    echo -e "${BLUE}Local preview:${NC}"
+    echo "$QUERY" | /Library/Frameworks/Python.framework/Versions/3.12/bin/snow sql -c poc --format table 2>/dev/null | head -20
+else
+    echo -e "${YELLOW}No SQL query generated${NC}"
+fi

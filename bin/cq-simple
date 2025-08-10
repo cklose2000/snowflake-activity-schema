@@ -1,0 +1,48 @@
+#!/bin/bash
+# cq-simple - Simplified Claude Query for COO
+# Just ask questions, get answers. No frills.
+
+# Configuration
+SNOW_CMD="${SNOW_CMD:-/Library/Frameworks/Python.framework/Versions/3.12/bin/snow}"
+
+# Get all arguments as the question
+QUESTION="$*"
+
+if [ -z "$QUESTION" ]; then
+    echo "Ask a question about your Claude usage:"
+    echo "Examples:"
+    echo "  cq-simple how many sessions today"
+    echo "  cq-simple why are sessions down"
+    echo "  cq-simple who is using Claude most"
+    exit 1
+fi
+
+# Ask Claude to write and execute SQL
+claude -p "You have access to CLAUDE_LOGS.ACTIVITIES schema with these views:
+- V_COO_METRICS: Today/Week/Month summary (period, sessions, users, activities, cost_dollars)
+- V_COO_DAILY_TREND: 30-day trend (day, sessions, users, activities)
+- V_COO_TOP_USERS: Top users this week
+- V_COO_RECENT_ACTIVITY: Last 24 hours of activity
+- V_COO_HEALTH_CHECK: Current status
+
+Write and execute a Snowflake SQL query to answer: $QUESTION
+
+Return ONLY the SQL query, no explanation." 2>/dev/null | \
+sed -n '/SELECT/,/;/p' | \
+$SNOW_CMD sql -c poc --format table 2>/dev/null | \
+head -20
+
+# If no results, try a simpler approach
+if [ ${PIPESTATUS[2]} -ne 0 ]; then
+    echo "Let me check the data..."
+    
+    # Just run a simple query and let Claude interpret
+    METRICS=$($SNOW_CMD sql -c poc -q "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_COO_METRICS;" --format json 2>/dev/null)
+    
+    claude -p "Based on this data:
+$METRICS
+
+Answer this question: $QUESTION
+
+Be brief and specific." 2>/dev/null
+fi

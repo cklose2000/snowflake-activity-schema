@@ -1,0 +1,274 @@
+#!/bin/bash
+# ~/bin/snowflake-context-init
+# Universal startup script for ALL Snowflake Claude Code sessions
+# This script hydrates context for efficient Claude Code operations
+
+set -e  # Exit on error
+
+# Color codes for output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}🔍 Discovering Snowflake environment...${NC}"
+
+# 1. DISCOVER ENVIRONMENT
+# Detect connection from multiple sources
+if [ -n "$SNOW_CONNECTION" ]; then
+    SNOW_CONN="$SNOW_CONNECTION"
+elif [ -f ~/.snowflake/config.toml ]; then
+    SNOW_CONN=$(grep default_connection ~/.snowflake/config.toml 2>/dev/null | cut -d'"' -f2 || echo "poc")
+else
+    SNOW_CONN="poc"
+fi
+
+# Find snow CLI
+if command -v snow &> /dev/null; then
+    SNOW_CMD="snow"
+elif [ -x "/Library/Frameworks/Python.framework/Versions/3.12/bin/snow" ]; then
+    SNOW_CMD="/Library/Frameworks/Python.framework/Versions/3.12/bin/snow"
+else
+    echo -e "${RED}❌ Snow CLI not found${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}Using connection: ${SNOW_CONN}${NC}"
+
+# 2. CREATE CONTEXT DIRECTORY
+mkdir -p .claude_context
+
+# 3. HYDRATE SCHEMA CONTEXT
+echo -e "${BLUE}📊 Querying database schema...${NC}"
+
+cat > /tmp/hydrate_context.sql << 'EOF'
+-- Get all views with their definitions
+SELECT 
+    'VIEW' as object_type,
+    table_name as object_name,
+    COALESCE(comment, 'No description') as description
+FROM CLAUDE_LOGS.information_schema.views 
+WHERE table_schema = 'ACTIVITIES'
+
+UNION ALL
+
+-- Get all tables
+SELECT 
+    'TABLE' as object_type,
+    table_name as object_name,
+    COALESCE(comment, 'No description') as description
+FROM CLAUDE_LOGS.information_schema.tables 
+WHERE table_schema = 'ACTIVITIES'
+    AND table_type = 'BASE TABLE'
+
+UNION ALL
+
+-- Get all procedures (simplified for now)
+SELECT 
+    'PROCEDURE' as object_type,
+    procedure_name as object_name,
+    'Stored procedure' as description
+FROM CLAUDE_LOGS.information_schema.procedures 
+WHERE procedure_schema = 'ACTIVITIES'
+ORDER BY object_type, object_name;
+EOF
+
+# Execute and save schema
+$SNOW_CMD sql -c $SNOW_CONN -f /tmp/hydrate_context.sql --format json 2>/dev/null > .claude_context/schema.json || {
+    echo -e "${YELLOW}⚠️  Could not fetch full schema, using minimal context${NC}"
+    echo '[]' > .claude_context/schema.json
+}
+
+# 4. CREATE ROLE-SPECIFIC CONTEXTS
+echo -e "${BLUE}🎭 Creating role-specific contexts...${NC}"
+
+python3 << 'EOF'
+import json
+import os
+import sys
+
+try:
+    with open('.claude_context/schema.json') as f:
+        content = f.read()
+        if not content or content.strip() == '':
+            schema = []
+        else:
+            schema = json.loads(content)
+except (json.JSONDecodeError, FileNotFoundError):
+    schema = []
+    
+# Get role from environment or argument
+role = os.environ.get('CLAUDE_ROLE', sys.argv[1] if len(sys.argv) > 1 else 'BA')
+
+# BA Context: Focus on views, metrics, KPIs
+ba_context = {
+    "role": "Business Analyst",
+    "focus": "Analytics and reporting",
+    "executive_views": [
+        obj for obj in schema 
+        if obj.get('object_type') == 'VIEW' 
+        and any(kw in obj.get('object_name', '').upper() 
+                for kw in ['EXECUTIVE', 'SUMMARY', 'KPI', 'STATS'])
+    ],
+    "analytics_views": [
+        obj for obj in schema 
+        if obj.get('object_type') == 'VIEW'
+        and any(kw in obj.get('object_name', '').upper() 
+                for kw in ['ANALYTICS', 'ACTIVITY', 'RECENT'])
+    ],
+    "query_templates": {
+        "coo_dashboard": "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_EXECUTIVE_SUMMARY;",
+        "user_adoption": "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_USER_ADOPTION WHERE activity_date >= CURRENT_DATE - 7;",
+        "tool_usage": "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_TOOL_USAGE_ANALYTICS ORDER BY usage_count DESC;",
+        "recent_activities": "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_RECENT_ACTIVITIES LIMIT 20;",
+        "session_summary": "SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_CLAUDE_SESSIONS ORDER BY session_start DESC LIMIT 10;"
+    },
+    "available_objects": len(schema)
+}
+
+# Data Engineer Context: Focus on tables, procedures, pipelines
+de_context = {
+    "role": "Data Engineer",
+    "focus": "Data pipelines and infrastructure",
+    "tables": [
+        obj for obj in schema 
+        if obj.get('object_type') == 'TABLE'
+    ],
+    "procedures": [
+        obj for obj in schema 
+        if obj.get('object_type') == 'PROCEDURE'
+    ],
+    "activity_schema": {
+        "stream_table": "ACTIVITY_STREAM",
+        "required_columns": ["activity_id", "ts", "activity", "customer", "anonymous_customer_id", "feature_json", "revenue_impact", "link"],
+        "logging_script": "activity_schema/log_claude_activity.sh"
+    },
+    "maintenance_queries": {
+        "table_size": "SELECT COUNT(*) as row_count, ROUND(BYTES/1024/1024, 2) as size_mb FROM CLAUDE_LOGS.information_schema.tables WHERE table_name = 'ACTIVITY_STREAM';",
+        "recent_inserts": "SELECT COUNT(*) as inserts_last_hour FROM ACTIVITY_STREAM WHERE ts >= DATEADD('hour', -1, CURRENT_TIMESTAMP());",
+        "check_procedures": "SHOW PROCEDURES IN SCHEMA CLAUDE_LOGS.ACTIVITIES;"
+    },
+    "available_objects": len(schema)
+}
+
+# Write contexts based on role
+os.makedirs('.claude_context', exist_ok=True)
+
+if role.upper() in ['BA', 'ANALYST', 'BUSINESS']:
+    with open('.claude_context/active_context.json', 'w') as f:
+        json.dump(ba_context, f, indent=2)
+    print(f"Created BA context with {len(ba_context['executive_views'])} executive views")
+else:
+    with open('.claude_context/active_context.json', 'w') as f:
+        json.dump(de_context, f, indent=2)
+    print(f"Created DE context with {len(de_context['tables'])} tables")
+
+# Always save both for reference
+with open('.claude_context/ba_context.json', 'w') as f:
+    json.dump(ba_context, f, indent=2)
+with open('.claude_context/de_context.json', 'w') as f:
+    json.dump(de_context, f, indent=2)
+EOF
+
+# 5. CREATE DYNAMIC CLAUDE.md
+echo -e "${BLUE}📝 Generating dynamic documentation...${NC}"
+
+cat > .claude_context/CLAUDE_DYNAMIC.md << EOF
+# Snowflake Context (Auto-Generated)
+Generated: $(date)
+Connection: $SNOW_CONN
+Role: ${1:-BA}
+
+## Quick Commands for COO/Executive Queries
+
+### Executive Dashboard
+\`\`\`sql
+-- High-level KPIs (last 30 days)
+SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_EXECUTIVE_SUMMARY;
+\`\`\`
+
+### User Adoption Trends
+\`\`\`sql
+-- Daily active users and sessions
+SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_USER_ADOPTION 
+WHERE activity_date >= CURRENT_DATE - 7
+ORDER BY activity_date DESC;
+\`\`\`
+
+### Tool Usage Analytics
+\`\`\`sql
+-- Most used Claude Code tools
+SELECT * FROM CLAUDE_LOGS.ACTIVITIES.V_TOOL_USAGE_ANALYTICS 
+ORDER BY usage_count DESC 
+LIMIT 10;
+\`\`\`
+
+## Available Database Objects
+EOF
+
+# Append discovered views
+echo "### Views" >> .claude_context/CLAUDE_DYNAMIC.md
+$SNOW_CMD sql -c $SNOW_CONN -q "SHOW VIEWS IN SCHEMA CLAUDE_LOGS.ACTIVITIES;" --format csv 2>/dev/null | \
+  tail -n +2 | cut -d',' -f2 | while read view; do
+    echo "- $view" >> .claude_context/CLAUDE_DYNAMIC.md
+done
+
+echo "" >> .claude_context/CLAUDE_DYNAMIC.md
+echo "### Tables" >> .claude_context/CLAUDE_DYNAMIC.md
+$SNOW_CMD sql -c $SNOW_CONN -q "SHOW TABLES IN SCHEMA CLAUDE_LOGS.ACTIVITIES;" --format csv 2>/dev/null | \
+  tail -n +2 | cut -d',' -f2 | while read table; do
+    echo "- $table" >> .claude_context/CLAUDE_DYNAMIC.md
+done
+
+# 6. INITIALIZE SESSION IN SNOWFLAKE (Log the hydration event)
+echo -e "${BLUE}📊 Registering session with Snowflake...${NC}"
+
+SESSION_ID="${CLAUDE_SESSION_ID:-$(uuidgen 2>/dev/null || echo "hydrate-$(date +%s)")}"
+
+$SNOW_CMD sql -c $SNOW_CONN -q "
+-- Register context hydration event
+INSERT INTO CLAUDE_LOGS.ACTIVITIES.ACTIVITY_STREAM (
+    activity_id,
+    ts,
+    activity,
+    customer,
+    anonymous_customer_id,
+    feature_json
+) 
+SELECT 
+    '$(uuidgen 2>/dev/null || echo "hydrate-$(date +%s)-$$")',
+    CURRENT_TIMESTAMP(),
+    'claude_context_hydration',
+    '$SESSION_ID',
+    '$(hostname)',
+    OBJECT_CONSTRUCT(
+        'mode', '${1:-BA}',
+        'schema_objects', (SELECT COUNT(*) FROM CLAUDE_LOGS.information_schema.tables WHERE table_schema = 'ACTIVITIES'),
+        'connection', '$SNOW_CONN',
+        'timestamp', CURRENT_TIMESTAMP()::STRING
+    );
+" 2>/dev/null || echo -e "${YELLOW}⚠️  Could not log hydration event${NC}"
+
+# 7. Try to call initialization procedure if it exists
+$SNOW_CMD sql -c $SNOW_CONN -q "CALL CLAUDE_LOGS.ACTIVITIES.INITIALIZE_SESSION('${1:-BA}');" 2>/dev/null || true
+
+# 8. SET ENVIRONMENT VARIABLES
+export CLAUDE_SNOWFLAKE_INITIALIZED=true
+export CLAUDE_CONTEXT_PATH="$(pwd)/.claude_context"
+export CLAUDE_ROLE="${1:-BA}"
+
+# 9. DISPLAY SUMMARY
+echo -e "${GREEN}✅ Context hydration complete!${NC}"
+echo -e "${GREEN}═══════════════════════════════════════${NC}"
+echo -e "📊 Database objects discovered: $(jq length .claude_context/schema.json 2>/dev/null || echo "0")"
+echo -e "🎭 Active role: $CLAUDE_ROLE"
+echo -e "🔌 Connection: $SNOW_CONN"
+echo -e "📁 Context saved to: .claude_context/"
+echo -e "${GREEN}═══════════════════════════════════════${NC}"
+
+if [ "$CLAUDE_ROLE" = "BA" ]; then
+    echo -e "${BLUE}💡 BA Tip: Ask 'Show me our Claude Code usage metrics' for instant dashboard${NC}"
+else
+    echo -e "${BLUE}💡 DE Tip: Check '.claude_context/de_context.json' for pipeline objects${NC}"
+fi

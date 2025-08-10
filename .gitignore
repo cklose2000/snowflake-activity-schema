@@ -1,0 +1,92 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+*.tgz
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Queue and temporary files
+/var/claude/queue/
+/tmp/claude_queue/
+*.ndjson
+queue_*.ndjson
+.ready
+.lock
+offset.json
+
+# SQL result files (contain data)
+sql_results/*.txt
+sql_results/*.csv
+sql_results/*.json
+
+# Archive directories
+archive/
+processed_*/
+
+# Logs
+logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+
+# Snowflake connection files (sensitive)
+.snowflake/
+snowflake_connections.toml
+config.toml
+
+# Claude context cache
+.claude_context/
+CLAUDE_DYNAMIC.md
+
+# Backup files
+*.backup
+*.bak
+*_backup.sql
+
+# Temporary SQL files
+batch_*.sql
+temp_*.sql
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# Package files
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Keep sql_results directory but not its contents
+!sql_results/.gitkeep

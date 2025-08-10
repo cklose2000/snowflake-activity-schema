@@ -1,0 +1,334 @@
+{
+  "version": "2.0.0",
+  "events": {
+    "sql_event": {
+      "description": "SQL query execution event",
+      "required": ["query_id", "sql", "success"],
+      "properties": {
+        "query_id": {
+          "type": "string",
+          "description": "Unique query identifier for QUERY_TAG tracking"
+        },
+        "sql": {
+          "type": "string",
+          "description": "SQL statement executed"
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Snowflake warehouse used"
+        },
+        "role": {
+          "type": "string",
+          "description": "Snowflake role used"
+        },
+        "database": {
+          "type": "string",
+          "description": "Target database"
+        },
+        "schema": {
+          "type": "string",
+          "description": "Target schema"
+        },
+        "rows": {
+          "type": "number",
+          "description": "Number of rows returned"
+        },
+        "bytes_scanned": {
+          "type": "number",
+          "description": "Bytes scanned during query"
+        },
+        "duration_ms": {
+          "type": "number",
+          "description": "Query execution time in milliseconds"
+        },
+        "credits_used": {
+          "type": "number",
+          "description": "Snowflake credits consumed"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether query succeeded"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if failed",
+          "nullable": true
+        },
+        "error_code": {
+          "type": "string",
+          "description": "Snowflake error code if failed",
+          "nullable": true
+        }
+      }
+    },
+    "llm_event": {
+      "description": "LLM interaction event",
+      "required": ["model", "prompt_tokens", "completion_tokens"],
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "LLM model identifier",
+          "enum": ["claude-3-opus", "claude-3-sonnet", "claude-3-haiku", "gpt-4", "gpt-3.5-turbo"]
+        },
+        "prompt_hash": {
+          "type": "string",
+          "description": "Hash of the prompt for deduplication"
+        },
+        "prompt_tokens": {
+          "type": "number",
+          "description": "Number of tokens in prompt"
+        },
+        "completion_tokens": {
+          "type": "number",
+          "description": "Number of tokens in completion"
+        },
+        "total_tokens": {
+          "type": "number",
+          "description": "Total tokens used"
+        },
+        "latency_ms": {
+          "type": "number",
+          "description": "Time to first token in milliseconds"
+        },
+        "total_latency_ms": {
+          "type": "number",
+          "description": "Total completion time in milliseconds"
+        },
+        "cost_usd": {
+          "type": "number",
+          "description": "Cost in USD for this interaction"
+        },
+        "temperature": {
+          "type": "number",
+          "description": "Temperature parameter used"
+        },
+        "max_tokens": {
+          "type": "number",
+          "description": "Max tokens parameter"
+        },
+        "stream": {
+          "type": "boolean",
+          "description": "Whether response was streamed"
+        }
+      }
+    },
+    "tool_event": {
+      "description": "Tool execution event",
+      "required": ["tool_name", "success"],
+      "properties": {
+        "tool_name": {
+          "type": "string",
+          "description": "Name of the tool executed"
+        },
+        "tool_category": {
+          "type": "string",
+          "description": "Category of tool",
+          "enum": ["file", "search", "execute", "analyze", "transform"]
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Tool parameters"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether tool execution succeeded"
+        },
+        "latency_ms": {
+          "type": "number",
+          "description": "Tool execution time in milliseconds"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if failed",
+          "nullable": true
+        },
+        "result_size": {
+          "type": "number",
+          "description": "Size of result in bytes"
+        },
+        "result_type": {
+          "type": "string",
+          "description": "Type of result returned"
+        }
+      }
+    },
+    "file_event": {
+      "description": "File operation event",
+      "required": ["operation", "file_path"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "description": "Type of file operation",
+          "enum": ["read", "write", "create", "edit", "delete", "rename"]
+        },
+        "file_path": {
+          "type": "string",
+          "description": "Path to the file"
+        },
+        "file_type": {
+          "type": "string",
+          "description": "File extension or type"
+        },
+        "lines_affected": {
+          "type": "number",
+          "description": "Number of lines modified"
+        },
+        "bytes_before": {
+          "type": "number",
+          "description": "File size before operation"
+        },
+        "bytes_after": {
+          "type": "number",
+          "description": "File size after operation"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether operation succeeded"
+        },
+        "git_tracked": {
+          "type": "boolean",
+          "description": "Whether file is tracked by git"
+        },
+        "git_branch": {
+          "type": "string",
+          "description": "Current git branch"
+        }
+      }
+    },
+    "session_event": {
+      "description": "Session lifecycle event",
+      "required": ["session_id", "event_type"],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "Unique session identifier"
+        },
+        "event_type": {
+          "type": "string",
+          "description": "Type of session event",
+          "enum": ["start", "end", "heartbeat", "context_hydration"]
+        },
+        "project_path": {
+          "type": "string",
+          "description": "Working directory path"
+        },
+        "user": {
+          "type": "string",
+          "description": "System username"
+        },
+        "host": {
+          "type": "string",
+          "description": "Hostname"
+        },
+        "cli_version": {
+          "type": "string",
+          "description": "Claude CLI version"
+        },
+        "total_activities": {
+          "type": "number",
+          "description": "Total activities in session (for end event)"
+        },
+        "total_tokens": {
+          "type": "number",
+          "description": "Total tokens used in session"
+        },
+        "session_duration_ms": {
+          "type": "number",
+          "description": "Session duration in milliseconds"
+        }
+      }
+    },
+    "mcp_event": {
+      "description": "MCP (Model Context Protocol) event",
+      "required": ["method", "latency_ms"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "description": "MCP method called",
+          "enum": ["get_context", "query", "store_artifact", "refresh_context"]
+        },
+        "cache_hit": {
+          "type": "boolean",
+          "description": "Whether context was served from cache"
+        },
+        "cache_age_ms": {
+          "type": "number",
+          "description": "Age of cached context in milliseconds"
+        },
+        "latency_ms": {
+          "type": "number",
+          "description": "Method execution time in milliseconds"
+        },
+        "stale": {
+          "type": "boolean",
+          "description": "Whether stale-while-revalidate was used"
+        },
+        "context_size": {
+          "type": "number",
+          "description": "Size of context in bytes"
+        }
+      }
+    },
+    "system_event": {
+      "description": "System monitoring event",
+      "required": ["event_type"],
+      "properties": {
+        "event_type": {
+          "type": "string",
+          "description": "Type of system event",
+          "enum": ["backpressure", "schema_drift", "queue_rotation", "artifact_cleanup", "error_recovery"]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Event severity",
+          "enum": ["info", "warning", "error", "critical"]
+        },
+        "message": {
+          "type": "string",
+          "description": "Event description"
+        },
+        "metrics": {
+          "type": "object",
+          "description": "Associated metrics"
+        },
+        "action_taken": {
+          "type": "string",
+          "description": "Automatic action taken by system"
+        }
+      }
+    }
+  },
+  "common_fields": {
+    "description": "Fields common to all events (automatically added)",
+    "properties": {
+      "activity_id": {
+        "type": "string",
+        "description": "Unique activity identifier (UUID)"
+      },
+      "ts": {
+        "type": "timestamp",
+        "description": "Event timestamp"
+      },
+      "activity": {
+        "type": "string",
+        "description": "Activity type name"
+      },
+      "customer": {
+        "type": "string",
+        "description": "Customer/session identifier"
+      },
+      "anonymous_customer_id": {
+        "type": "string",
+        "description": "Anonymous customer identifier (hostname)"
+      },
+      "revenue_impact": {
+        "type": "number",
+        "description": "Cost/revenue impact in credits"
+      },
+      "link": {
+        "type": "string",
+        "description": "Link to artifact or external resource"
+      }
+    }
+  }
+}
