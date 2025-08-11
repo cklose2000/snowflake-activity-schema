@@ -1,0 +1,21 @@
+# Snowflake configuration for CLAUDE_DESKTOP1 user testing
+# This config uses the dedicated user created for Claude Desktop integration
+
+[connections.claude_desktop]
+account = "yshmxno-fbc56289"
+user = "CLAUDE_DESKTOP1"
+password = "Password123!"
+warehouse = "COMPUTE_WH"
+database = "CLAUDE_LOGS"
+schema = "ACTIVITIES"
+role = "CLAUDE_DESKTOP_ROLE"
+
+# Keep existing poc connection for admin tasks
+[connections.poc]
+account = "yshmxno-fbc56289"
+user = "cklose2000"
+password = "\\5/V47hv2sTk*HU"
+warehouse = "COMPUTE_WH"
+database = "CLAUDE_LOGS"
+schema = "ACTIVITIES"
+role = "ACCOUNTADMIN"

@@ -1,0 +1,19 @@
+default_connection_name = "claude_desktop"
+
+[connections.claude_desktop]
+account = "yshmxno-fbc56289"
+user = "CLAUDE_DESKTOP1"
+password = "Password123!"
+warehouse = "COMPUTE_WH"
+database = "CLAUDE_LOGS"
+schema = "ACTIVITIES"
+role = "CLAUDE_DESKTOP_ROLE"
+
+[connections.poc]
+account = "yshmxno-fbc56289"
+user = "cklose2000"
+password = "\\5/V47hv2sTk*HU"
+warehouse = "COMPUTE_WH"
+database = "CLAUDE_LOGS"
+schema = "ACTIVITIES"
+role = "ACCOUNTADMIN"
