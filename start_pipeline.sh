@@ -7,7 +7,7 @@ echo "========================================"
 
 # Configuration
 export QUEUE_DIR=/tmp/claude_queue
-export SNOW_CONNECTION=poc
+export SNOW_CONNECTION=claude_desktop
 
 # Ensure queue directory exists
 mkdir -p $QUEUE_DIR

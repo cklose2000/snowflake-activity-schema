@@ -15,7 +15,7 @@ class SnowpipeUploader {
     constructor(config = {}) {
         // Configuration
         this.queueDir = config.queueDir || '/var/claude/queue';
-        this.snowConnection = config.snowConnection || 'poc';
+        this.snowConnection = config.snowConnection || 'claude_desktop';
         this.batchSize = config.batchSize || 1000;
         this.uploadInterval = config.uploadInterval || 5000; // 5 seconds
         this.maxRetries = config.maxRetries || 3;
@@ -178,7 +178,7 @@ class SnowpipeUploader {
             return `
                 SELECT 
                     '${event.activity_id}' as activity_id,
-                    '${event.ts || new Date().toISOString()}' as ts,
+                    TO_TIMESTAMP_NTZ('${event.ts || new Date().toISOString()}') as ts,
                     '${event.activity}' as activity,
                     '${event.customer}' as customer,
                     '${event.anonymous_customer_id || 'unknown'}' as anonymous_customer_id,

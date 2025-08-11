@@ -28,7 +28,7 @@ write_event() {
   "anonymous_customer_id": "$HOST",
   "feature_json": $feature_json,
   "revenue_impact": $revenue_impact,
-  "ts": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+  "ts": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
 )
