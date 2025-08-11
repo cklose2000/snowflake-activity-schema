@@ -188,6 +188,50 @@ npm run uploader      # Terminal 2: Snowpipe uploader
 snow sql -c poc -q "SELECT * FROM VW_PRODUCT_METRICS LIMIT 1;"
 ```
 
+### Using Claude with v2 Logging
+
+**IMPORTANT**: The v2 pipeline only captures sessions that explicitly use the `claude-v2` wrapper.
+
+```bash
+# Setup the wrapper (one-time)
+ln -s $PWD/bin/claude-v2 ~/bin/claude-v2
+
+# Start a Claude session WITH v2 logging
+claude-v2
+
+# Or run a single command with logging
+claude-v2 "What is 2+2?"
+
+# Check your current Claude setup
+which claude          # Shows if using default or v2
+cat .claude-log       # Shows v1 logging type (if present)
+
+# Different logging modes available:
+claude-v2             # Uses v2 pipeline (CLAUDE_STREAM_V2)
+claude                # Uses v1 system based on .claude-log file
+claude-plain          # No logging at all (bypass wrapper)
+```
+
+#### Making v2 the Default (Optional)
+
+To make ALL Claude Code sessions use v2 logging:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+alias claude='claude-v2'
+
+# Then reload shell
+source ~/.zshrc
+```
+
+#### Checking What's Being Logged
+
+Your current Claude Code session logs to different places based on how it was started:
+- Started with `claude-v2` → Logs to v2 pipeline (CLAUDE_STREAM_V2)
+- Started with `claude` in directory with `.claude-log` file → Logs to v1 (ACTIVITY_STREAM)
+- Started with `claude` without `.claude-log` → No logging
+- Started with `claude-plain` → No logging
+
 ## 📊 Key Queries
 
 ### Executive Dashboard
