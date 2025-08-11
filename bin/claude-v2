@@ -1,0 +1,98 @@
+#!/bin/bash
+# claude-v2 - ActivitySchema v2.0 wrapper for Claude CLI
+# Writes events to NDJSON queue for processing by Node.js pipeline
+
+set -e
+
+# Configuration
+QUEUE_DIR="${CLAUDE_QUEUE_DIR:-/tmp/claude_queue}"
+QUEUE_FILE="$QUEUE_DIR/current.ndjson"
+SESSION_ID="claude-$(date +%s)-$$"
+CUSTOMER="${CLAUDE_CUSTOMER:-$USER}"
+HOST="${HOSTNAME:-$(hostname 2>/dev/null || echo 'unknown')}"
+
+# Ensure queue directory exists
+mkdir -p "$QUEUE_DIR"
+
+# Function to write event to queue
+write_event() {
+    local activity="$1"
+    local feature_json="$2"
+    local revenue_impact="${3:-0}"
+    
+    local event=$(cat <<EOF
+{
+  "activity_id": "$(uuidgen 2>/dev/null || echo "$SESSION_ID-$(date +%s)")",
+  "activity": "$activity",
+  "customer": "$SESSION_ID",
+  "anonymous_customer_id": "$HOST",
+  "feature_json": $feature_json,
+  "revenue_impact": $revenue_impact,
+  "ts": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+}
+EOF
+)
+    
+    # Append to queue file (single line)
+    echo "$event" | tr '\n' ' ' | sed 's/  */ /g' >> "$QUEUE_FILE"
+    echo "" >> "$QUEUE_FILE"
+}
+
+# Log session start
+echo "🚀 Starting Claude session: $SESSION_ID" >&2
+START_TIME=$(date +%s)
+
+write_event "session_start" "{
+  \"session_id\": \"$SESSION_ID\",
+  \"user\": \"$CUSTOMER\",
+  \"host\": \"$HOST\",
+  \"project_path\": \"$(pwd)\",
+  \"cli_version\": \"2.0.0\"
+}"
+
+# Create temp file for capturing output
+TEMP_OUTPUT="/tmp/claude-output-$$"
+trap "rm -f $TEMP_OUTPUT" EXIT
+
+# Track metrics
+ACTIVITY_COUNT=0
+
+# Run Claude and capture output
+echo "💭 Running Claude..." >&2
+if claude "$@" 2>&1 | tee "$TEMP_OUTPUT"; then
+    EXIT_CODE=0
+else
+    EXIT_CODE=$?
+fi
+
+# Estimate tokens from output
+OUTPUT_SIZE=$(wc -c < "$TEMP_OUTPUT" 2>/dev/null || echo "100")
+ESTIMATED_TOKENS=$((OUTPUT_SIZE / 4))
+
+# Try to detect tool usage from output
+if grep -q "Running\|Executing\|Creating\|Writing" "$TEMP_OUTPUT" 2>/dev/null; then
+    ACTIVITY_COUNT=$((ACTIVITY_COUNT + 1))
+    write_event "tool_call" "{
+        \"tool_name\": \"detected_tool\",
+        \"success\": true,
+        \"session_id\": \"$SESSION_ID\"
+    }"
+fi
+
+# Calculate duration
+END_TIME=$(date +%s)
+DURATION_MS=$(((END_TIME - START_TIME) * 1000))
+
+# Log session end
+write_event "session_end" "{
+  \"session_id\": \"$SESSION_ID\",
+  \"total_activities\": $ACTIVITY_COUNT,
+  \"total_tokens\": $ESTIMATED_TOKENS,
+  \"session_duration_ms\": $DURATION_MS,
+  \"exit_code\": $EXIT_CODE
+}" "$(echo "scale=6; $ESTIMATED_TOKENS * 0.000003" | bc 2>/dev/null || echo "0")"
+
+echo "✅ Session logged to queue: $SESSION_ID" >&2
+echo "📊 Events: $QUEUE_FILE (will be processed by uploader)" >&2
+
+exit $EXIT_CODE
